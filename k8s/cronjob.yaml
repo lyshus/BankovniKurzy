@@ -1,13 +1,14 @@
 # CronJob který spouští stahování kurzů.
-# Běží každou hodinu v pracovní dny (Po–Pá).
+# Běží každé 2 hodiny v pracovní dny (Po–Pá).
 # ČNB aktualizuje v ~14:30, komerční banky ráno v ~8:00.
+# Scraper sám přeskočí banku, pokud kurzy stáhl před méně než 90 minutami.
 apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: fetch-rates
   namespace: bankovni-kurzy
 spec:
-  schedule: "0 * * * 1-5"   # každou hodinu, Po–Pá
+  schedule: "0 */2 * * 1-5"   # každé 2 hodiny, Po–Pá
   concurrencyPolicy: Forbid   # nepouštět souběžně
   jobTemplate:
     spec:

@@ -5,25 +5,38 @@ Spuštění:
   python manage.py fetch_rates           # všechny banky
   python manage.py fetch_rates --bank cnb  # pouze ČNB
 
+Ochrana před blacklistingem:
+  - Mezi bankami je náhodná pauza 2–5 s
+  - Kurzy se znovu nestahují, pokud byly staženy v posledních 90 minutách
+  - Všechna volání používají User-Agent prohlížeče
+
 Jak přidat novou banku:
   1. Vytvoř rates/scrapers/<kod>.py s třídou dědící BaseScraper
   2. Přidej třídu do seznamu SCRAPERS níže
-  3. Spusť: python manage.py initdata  (přidá záznam banky do DB)
+  3. Spusť: python manage.py initdata
 """
+import time
+import random
+from datetime import timedelta
 from django.core.management.base import BaseCommand
+from django.utils import timezone
 from rates.models import Bank, Currency, ExchangeRate
 from rates.scrapers.cnb import CNBScraper
-# Odkomentuj až implementuješ:
-# from rates.scrapers.csas import CSASScraper
-# from rates.scrapers.csob import CSOBScraper
-# from rates.scrapers.kb import KBScraper
+from rates.scrapers.kb import KBScraper
+from rates.scrapers.csas import CSASScraper
+from rates.scrapers.csob import CSOBScraper
+from rates.scrapers.rb import RBScraper
 
 SCRAPERS = [
     CNBScraper,
-    # CSASScraper,
-    # CSOBScraper,
-    # KBScraper,
+    KBScraper,
+    CSASScraper,
+    CSOBScraper,
+    RBScraper,
 ]
+
+# Přeskočit banku, pokud byly kurzy staženy před méně než N minutami
+MIN_FETCH_INTERVAL_MINUTES = 90
 
 
 class Command(BaseCommand):
@@ -35,31 +48,46 @@ class Command(BaseCommand):
             type=str,
             help='Stáhnout pouze tuto banku (kód, např. cnb)',
         )
+        parser.add_argument(
+            '--force',
+            action='store_true',
+            help='Ignorovat minimální interval a stáhnout vždy',
+        )
 
     def handle(self, *args, **options):
         only_bank = options.get('bank')
+        force = options.get('force', False)
         scrapers = [s for s in SCRAPERS if not only_bank or s.bank_code == only_bank]
 
         if not scrapers:
             self.stdout.write(self.style.ERROR(f'Scraper pro banku "{only_bank}" nenalezen.'))
             return
 
-        for ScraperClass in scrapers:
+        for i, ScraperClass in enumerate(scrapers):
             code = ScraperClass.bank_code
-            self.stdout.write(f'Stahuji kurzy: {code} …')
+
             try:
                 bank = Bank.objects.get(code=code, active=True)
             except Bank.DoesNotExist:
                 self.stdout.write(self.style.WARNING(
-                    f'  Banka "{code}" nenalezena nebo není aktivní. '
-                    f'Spusť "python manage.py initdata" pro inicializaci.'
+                    f'  [{code}] Banka nenalezena nebo není aktivní. '
+                    f'Spusť "python manage.py initdata".'
                 ))
                 continue
 
+            if not force:
+                cutoff = timezone.now() - timedelta(minutes=MIN_FETCH_INTERVAL_MINUTES)
+                if ExchangeRate.objects.filter(bank=bank, fetched_at__gte=cutoff).exists():
+                    self.stdout.write(
+                        f'  [{code}] Přeskočeno — kurzy staženy před méně než {MIN_FETCH_INTERVAL_MINUTES} min.'
+                    )
+                    continue
+
+            self.stdout.write(f'Stahuji kurzy: {code} …')
             try:
                 rates = ScraperClass().fetch()
             except Exception as e:
-                self.stdout.write(self.style.ERROR(f'  Chyba při stahování: {e}'))
+                self.stdout.write(self.style.ERROR(f'  [{code}] Chyba při stahování: {e}'))
                 continue
 
             saved = 0
@@ -71,7 +99,6 @@ class Command(BaseCommand):
                         'name_cz': r.get('currency_name_cz', ''),
                     },
                 )
-                # Nekládej duplicity: stejná banka, měna a datum platnosti
                 already_exists = ExchangeRate.objects.filter(
                     bank=bank,
                     currency=currency,
@@ -90,5 +117,11 @@ class Command(BaseCommand):
                     saved += 1
 
             self.stdout.write(self.style.SUCCESS(
-                f'  ✓ {saved} nových kurzů uloženo ({len(rates) - saved} duplicit přeskočeno)'
+                f'  [{code}] ✓ {saved} nových kurzů uloženo ({len(rates) - saved} duplicit přeskočeno)'
             ))
+
+            # Pauza mezi bankami (kromě poslední) — ochrana před blacklistingem
+            if i < len(scrapers) - 1:
+                delay = random.uniform(2, 5)
+                self.stdout.write(f'  Pauza {delay:.1f}s před další bankou…')
+                time.sleep(delay)

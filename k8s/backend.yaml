@@ -57,6 +57,9 @@ spec:
             httpGet:
               path: /api/v1/health/
               port: 8000
+              httpHeaders:
+                - name: Host
+                  value: backend
             initialDelaySeconds: 15
             periodSeconds: 30
 ---
