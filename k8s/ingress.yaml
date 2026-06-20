@@ -1,0 +1,46 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: kurzy-frapa-eu-tls
+  namespace: bankovni-kurzy
+spec:
+  secretName: kurzy-frapa-eu-tls
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  dnsNames:
+    - kurzy.frapa.eu
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: bankovni-kurzy
+  namespace: bankovni-kurzy
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - kurzy.frapa.eu
+      secretName: kurzy-frapa-eu-tls
+  rules:
+    - host: kurzy.frapa.eu
+      http:
+        paths:
+          # API požadavky jdou na Django backend
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: backend
+                port:
+                  number: 8000
+          # Vše ostatní jde na React frontend
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port:
+                  number: 80

@@ -1,0 +1,27 @@
+# CronJob který spouští stahování kurzů.
+# Běží každou hodinu v pracovní dny (Po–Pá).
+# ČNB aktualizuje v ~14:30, komerční banky ráno v ~8:00.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: fetch-rates
+  namespace: bankovni-kurzy
+spec:
+  schedule: "0 * * * 1-5"   # každou hodinu, Po–Pá
+  concurrencyPolicy: Forbid   # nepouštět souběžně
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: fetch-rates
+              image: bankovni-kurzy/backend:latest
+              imagePullPolicy: Never
+              command: ['python', 'manage.py', 'fetch_rates']
+              envFrom:
+                - secretRef:
+                    name: backend-secret
+              env:
+                - name: DB_HOST
+                  value: postgres

@@ -10,3 +10,19 @@ graphify-out/
 secrets/
 *.key
 *.pem
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+backend/staticfiles/
+
+# Node
+frontend/node_modules/
+frontend/dist/
+
+# IDE
+.idea/
+.vscode/
+*.swp
