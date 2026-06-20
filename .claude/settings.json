@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "defaultMode": "acceptEdits",
+    "allow": [
+      "Bash(npm install*)",
+      "Bash(npm run*)",
+      "Bash(git commit*)",
+      "Bash(git push origin*)",
+      "Bash(docker compose*)",
+      "Bash(sudo systemctl*)",
+      "Bash(sudo apt install*)"
+    ],
+    "deny": [
+      "Bash(rm -rf*)",
+      "Bash(git push * --force*)",
+      "Bash(sudo rm*)",
+      "Read(./.env)",
+      "Read(./.env.*)"
+    ]
+  }
+}

@@ -1,0 +1,12 @@
+# Local Claude Code settings (machine-specific)
+.claude/settings.local.json
+
+# Graphify output (generated, not source)
+graphify-out/
+
+# Environment / secrets
+.env
+.env.*
+secrets/
+*.key
+*.pem
